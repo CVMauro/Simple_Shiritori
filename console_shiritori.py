@@ -1,167 +1,122 @@
-from jisho_api.word import Word
-import sys, os, re
+from fugashi import Tagger
 
-class Player():
-    def __init__(self, name: str):
+small_characters = {
+    "ャ" : "ヤ",
+    "ュ" : "ユ",
+    "ョ" : "ヨ",
+    "ァ" : "ア",
+    "ゥ" : "ウ",
+    "ォ" : "オ",
+    "ェ" : "エ",
+    "ィ" : "イ",
+}
+
+class Player:
+    def __init__(self, name, input):
         self.name = name
-        self.health = 3
-        self.current_word = ""
+        self.input = input
 
-    # def currentWord(self, word: str):
-    #     self.current_word = word
-
-class JishoRequest():
-    def __init__(self):
-        self.output = sys.stdout
-    def __enter__(self):
-        sys.stdout = open(os.devnull, "w")
-    def __exit__(self, *args):
-        sys.stdout = self.output
-
-# def order():
-#     first_name = input("Enter player name: ")
-#     second_name = input("Enter second player name: ")
-
-#     print("Rock-Paper-Scissors for starting order!")
-
-#     while True:
-#         first_selection = input(first_name + ", Enter your selection facing away from P2 (R, P, or S): ")
-#         second_selection = input(second_name + ", enter your selection (R, P, or S): ")
-
-#         if first_selection == "R" and second_selection == "S":
-
-def shiritori(player: Player):
-    player1_input = input(f"{player.name}: ")
-
-    while not confirm(player1_input):
-        player1_input = input(f"{player.name}: ")
-
-    player.current_word = player1_input
-    
-    # print("Current Word: " + player1_input)
-
-    # player2_input = input("Player 2: ")
-
-    # while not confirm(player2_input):
-    #     player2_input = input("Player 2: ")
-
-
-    # survived = clash(player1_input, player2_input)
-
-    
-
-def confirm(p1_word: str) -> bool:
-    regex = re.compile("[^あ-んア-ンーぁ-ゎァ-ン]")
-
-    if regex.search(p1_word):
-        print("Invalid character in word!")
-        return False
-    
-    request = "\"" + p1_word + "\""
-    try:
-        with JishoRequest():
-            word_call = Word.request(request)
-        valid = word_call.meta.status
-
-        word_data = word_call.data
-        for configs in word_data[0]:
-            if configs.parts_of_speech[0] == "Noun":
-                break
-            else:
-                print("Not a noun!")
-                return False
-    except:
-        print("Word does not exist!")
-        return False
-    return True
-
-def clash(old_word: str, new_word: str) -> bool:
-    if new_word[0] == old_word[-1] and not (new_word[-1] == "ん" or new_word[-1] == "ン"):
+def first_turn(first_turn_result):
+    if first_turn_result.pos[:2] != "名詞":
+        print("Not a noun! P1 Loses!")
+        return True
+    elif first_turn_result.feature.kana[-1] == "ン":
+        print("Ends in ン! P1 Loses!")
         return True
     else:
         return False
-
-def main():
-    p1 = Player("P1")
-    p2 = Player("P2")
-
-    words_used = set()
-
-    shiritori(p1)
-
-    while p1.current_word[-1] == "ん" or p1.current_word[-1] == "ン":
-        print("Last character cannot be ん")
-        shiritori(p1)
     
-    words_used.add(p1.current_word)
+def multi_word_turn(current_player, player_result, previous_result, previous_kana):
+    first_word = player_result[0]
+    last_word = player_result[-1]
 
-    shiritori(p2)
+    if last_word.pos[:2] != "名詞":
+        print(f"Not a noun! {current_player.name} Loses!")
+        return False
+    elif first_word.feature.kana[0] != previous_kana and previous_kana not in small_characters:
+        print(f"Doesn't match previous kana! {current_player.name} Loses!")
+        return False
+    elif previous_kana in small_characters and small_characters[previous_kana] != first_word.feature.kana[0]:
+        print(f"Doesn't match previous kana! {current_player.name} Loses!")
+        return False
+    elif last_word.feature.kana[-1] == "ン":
+        print(f"Ends in ン! {current_player.name} Loses!")
+        return False
+    else:
+        previous_result[0] = player_result[-1]
+        return True
 
-    while p2.current_word in words_used:
-        print("Duplicate word!")
-        shiritori(p2)
+def turns(tagger, current_player, previous_result):
+    current_player.input = input(f"{current_player.name}:")
 
-    if not clash(p1.current_word, p2.current_word):
-        print(f"{p2.name} lost!")
+    tagger.parse(current_player.input)
+
+    previous_kana = previous_result[0].feature.kana[-1]
+    if previous_kana == "ー":
+        previous_kana = previous_result[0].feature.kana[-2]
+
+    if len(tagger(current_player.input)) > 1:
+        return multi_word_turn(current_player, tagger(current_player.input), previous_result, previous_kana)
+
+    player_result = tagger(current_player.input)[0]
+
+    #print(tagger(current_player.input))
+
+    if player_result.pos[:2] != "名詞":
+        print(f"Not a noun! {current_player.name} Loses!")
+        return False
+    elif player_result.feature.kana[0] != previous_kana and previous_kana not in small_characters:
+        print(f"Doesn't match previous kana! {current_player.name} Loses!")
+        return False
+    elif previous_kana in small_characters and small_characters[previous_kana] != player_result.feature.kana[0]:
+        print(f"Doesn't match previous kana! {current_player.name} Loses!")
+        return False
+    elif player_result.feature.kana[-1] == "ン":
+        print(f"Ends in ン! {current_player.name} Loses!")
+        return False
+    else:
+        previous_result[0] = player_result
+        return True
+
+def game(tagger):
+    p1 = Player("P1", "") 
+    p2 = Player("P2", "")
+
+    players = [p1, p2]
+
+    first_turn_word = input("Starting Word:")
+    tagger.parse(first_turn_word)
+
+    first_turn_result = tagger(first_turn_word)[0]
+
+    if len(tagger(first_turn_word)) > 1:
+        first_turn_result = tagger(first_turn_word)[-1]
+
+    #print(tagger(first_turn_word))
+    #print(first_turn_result.feature.kana[-1])
+    
+    if first_turn(first_turn_result):
         return
 
-    words_used.add(p2.current_word)
-    while True:
-        shiritori(p1)
+    p1.input = first_turn_word
+    n = -1
 
-        while p1.current_word in words_used:
-            print("Duplicate word!")
-            shiritori(p1)
+    current_player = players[n]
+    previous_result = [first_turn_result]
 
-        if not clash(p2.current_word, p1.current_word):
-            print(f"{p1.name} lost!")
-            break
+    while turns(tagger, current_player, previous_result) is True:
+        #print(previous_result[0].feature.kana[-1])
+        if n == -1:
+            n += 1
+        else:
+            n -= 1
+        current_player = players[n]
 
-        words_used.add(p1.current_word)
+def main():
+    tagger = Tagger('-Owakati')
 
-        shiritori(p2)
-
-        while p1.current_word in words_used:
-            print("Duplicate word!")
-            shiritori(p1)
-
-        if not clash(p1.current_word, p2.current_word):
-            print(f"{p2.name} lost!")
-            break
-
-        words_used.add(p2.current_word)
-    # msg = input("Type: ")
-    # r = Word.request("\"" + msg + "\"")
-    # print(r)
-
-    # word_data = r.data
-    
-
-    # for configs in word_data[0]:
-    #     if configs.parts_of_speech[0] == "Noun":
-    #         print("YES")
-        #print(configs)
-    # iter = word_data.__iter__
-
-    # for iter in word_data:
-    #     print(*iter)
-    #     iter += 1
-
-    # msg = input("Type: ")
-    # request = "\"" + msg + "\""
-    # regex = re.compile("[^あ-んア-ンーぁ-ゎァ-ン]")
-
-    # if regex.search(msg):
-    #      print("Bruh")
-
-    # try:
-    #     with jishoRequest():
-    #         word_call = Word.request(request)
-
-    #     clash(msg)
-    #     valid = word_call.meta.status
-    # except:
-    #     print("Yep")
+    print("\u001b[2J\x1b[H\x1b[4mようこそ、\x1b[38;5;121mしりとりへ\x1b[0m")
+    game(tagger)
 
 if __name__ == "__main__":
     main()
