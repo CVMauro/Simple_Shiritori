@@ -60,7 +60,7 @@ def turns(tagger, current_player, previous_result):
 
     player_result = tagger(current_player.input)[0]
 
-    print(tagger(current_player.input))
+    #print(tagger(current_player.input))
 
     if player_result.pos[:2] != "名詞":
         print(f"Not a noun! {current_player.name} Loses!")
@@ -92,8 +92,8 @@ def game(tagger):
     if len(tagger(first_turn_word)) > 1:
         first_turn_result = tagger(first_turn_word)[-1]
 
-    print(tagger(first_turn_word))
-    print(first_turn_result.feature.kana[-1])
+    #print(tagger(first_turn_word))
+    #print(first_turn_result.feature.kana[-1])
     
     if first_turn(first_turn_result):
         return
@@ -105,7 +105,7 @@ def game(tagger):
     previous_result = [first_turn_result]
 
     while turns(tagger, current_player, previous_result) is True:
-        print(previous_result[0].feature.kana[-1])
+        #print(previous_result[0].feature.kana[-1])
         if n == -1:
             n += 1
         else:
