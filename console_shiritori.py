@@ -18,7 +18,7 @@ class Player:
 
 def first_turn(first_turn_result):
     if first_turn_result.pos[:2] != "名詞":
-        print("Not a noun! P1 Loses!")
+        print("名詞じゃない！P1の負けだ！")
         return True
     elif first_turn_result.feature.kana[-1] == "ン":
         print("Ends in ン! P1 Loses!")
